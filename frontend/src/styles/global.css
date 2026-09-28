@@ -33,3 +33,34 @@ body { margin: 0; background: #f6f8fb; color: #1f2937; }
 .link { border: none; background: none; color: var(--brand); cursor: pointer; padding: 0; }
 .page-foot { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .error-text { color: #b42318; }
+
+/* 结果标签：合格 / 不合格 / 未考核三档配色，台账与下钻视图共用，保证观感一致。 */
+.tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; line-height: 18px; white-space: nowrap; }
+.tag-success { background: #e7f6ec; color: #157347; border: 1px solid #b7e0c5; }
+.tag-danger { background: #fdeceb; color: #b42318; border: 1px solid #f3c2bd; font-weight: 600; }
+.tag-warning { background: #fdf3e1; color: #9a6200; border: 1px solid #f0d8a8; font-weight: 600; }
+.tag-muted { background: #f1f5f9; color: #94a3b8; border: 1px dashed #cbd5e1; }
+.tag-missing { background: #fff4e5; color: #ad5700; border: 1px solid #f5cf9e; }
+.na-text { color: #94a3b8; }
+
+/* 完成情况下钻视图：班组行可点开，成员行嵌在班组行下面。 */
+.period-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.period-bar select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; font-size: 13px; }
+.drill-table { width: 100%; border-collapse: collapse; background: #fff; }
+.drill-table th, .drill-table td { border: 1px solid var(--border); padding: 8px 10px; font-size: 13px; text-align: left; vertical-align: middle; }
+.drill-table tbody > tr.team-row { cursor: pointer; }
+.drill-table tbody > tr.team-row:hover { background: #f8fbff; }
+.drill-table tr.member-row { background: #fafcfe; }
+.drill-table tr.member-row td { font-size: 12px; color: #334155; }
+.cell-counts { display: flex; gap: 6px; }
+.count-pill { min-width: 26px; text-align: center; padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+.count-pass { background: #e7f6ec; color: #157347; }
+.count-fail { background: #fdeceb; color: #b42318; }
+.count-pending { background: #fdf3e1; color: #9a6200; }
+.rate-bar { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+.rate-track { flex: 1; height: 6px; background: #eef2f7; border-radius: 3px; overflow: hidden; }
+.rate-fill { display: block; height: 100%; background: var(--brand); }
+.rate-fill.is-low { background: #d92d20; }
+.expand-icon { display: inline-block; width: 14px; color: var(--muted); transition: transform .15s ease; }
+.expand-icon.is-open { transform: rotate(90deg); }
+.legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--muted); flex-wrap: wrap; }

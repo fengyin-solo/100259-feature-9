@@ -1,4 +1,5 @@
-"""技能培训接口：维护培训记录，覆盖组织培训、组织考核、归档等动作。"""
+"""技能培训接口：维护培训记录，覆盖组织培训、组织考核、归档等动作，
+并提供培训完成情况的班组下钻视图数据。"""
 from __future__ import annotations
 
 from typing import Any
@@ -6,27 +7,60 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
-from app.services.training import TrainingService
+from app.services.training import MONTH_PATTERN, TrainingService
 
 router = APIRouter(prefix="/api/training", tags=["技能培训"])
 
 service = TrainingService()
 
-LIST_FIELDS = ["培训编号", "培训主题", "培训对象", "培训日期", "培训讲师", "考核方式", "考核结果", "培训状态"]
+LIST_FIELDS = ["培训编号", "培训主题", "所属班组", "培训对象", "培训日期", "培训讲师", "考核方式", "考核结果", "培训状态"]
 STATUSES = ["待培训", "培训中", "已考核", "已归档"]
+
+
+def _validate_period(period: str | None) -> str | None:
+    if period and not MONTH_PATTERN.match(period):
+        raise HTTPException(status_code=400, detail="统计周期格式应为 YYYY-MM，例如 2026-09")
+    return period
+
+
+@router.get("/completion/periods")
+def completion_periods() -> dict[str, Any]:
+    """培训台账里实际出现过的统计周期，给台账页和完成情况视图共用同一个下拉框。"""
+    return {"periods": service.list_periods()}
+
+
+@router.get("/completion/summary")
+def completion_summary(
+    period: str | None = Query(default=None, description="YYYY-MM；不传表示全部周期"),
+) -> dict[str, Any]:
+    """总体完成情况。台账列表统计卡也取这个接口，完成率只有这一套口径。"""
+    return service.completion_overview(_validate_period(period))
+
+
+@router.get("/completion/teams")
+def completion_teams(
+    period: str | None = Query(default=None, description="YYYY-MM；不传表示全部周期"),
+) -> dict[str, Any]:
+    """按班组列出培训完成情况与考核结果分布（含成员明细，供就地展开下钻）。"""
+    try:
+        return service.completion_teams(_validate_period(period))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("", response_model=PageResult[dict])
 def list_entries(
     keyword: str | None = Query(default=None, description="按培训编号检索"),
     status: str | None = Query(default=None, description="待培训、培训中、已考核、已归档"),
+    period: str | None = Query(default=None, description="统计周期 YYYY-MM，与完成情况视图同口径"),
     page: int = 1,
     size: int = 20,
 ) -> PageResult[dict]:
-    """按培训编号与状态过滤技能培训列表；没有数据时返回空页，不报错。"""
+    """按培训编号、状态与统计周期过滤技能培训列表；没有数据时返回空页，不报错。"""
+    _validate_period(period)
     if size > 200:
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
-    items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
+    items, total = service.list_entries(keyword=keyword, status=status, period=period, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
 
 
