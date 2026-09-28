@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h2>技能培训管理</h2>
-        <p class="page-desc">维护培训记录，围绕培训编号、培训主题、培训对象、培训日期做登记、筛选与状态流转。</p>
+        <p class="page-desc">按班组查看培训完成情况与考核结果分布，可下钻到人；台账与完成视图共用同一套完成率口径。</p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记培训记录</button>
@@ -11,120 +11,116 @@
       </div>
     </header>
 
-    <div class="stat-row">
-      <article v-for="item in stats" :key="item.label" class="stat-card">
-        <span class="stat-label">{{ item.label }}</span>
-        <strong class="stat-value">{{ item.value }}</strong>
-      </article>
+    <div class="tab-bar" role="tablist">
+      <button
+        class="tab-btn"
+        :class="{ active: store.tab === 'completion' }"
+        type="button"
+        role="tab"
+        @click="store.setTab('completion')"
+      >
+        完成情况
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ active: store.tab === 'ledger' }"
+        type="button"
+        role="tab"
+        @click="store.setTab('ledger')"
+      >
+        培训台账
+      </button>
+
+      <label class="period-picker">
+        <span>统计周期</span>
+        <select :value="store.period" @change="onPeriodChange">
+          <option value="latest">最新周期</option>
+          <option v-for="item in periods" :key="item" :value="item">{{ item }}</option>
+          <option value="all">全部周期</option>
+        </select>
+      </label>
     </div>
 
-    <form class="filter-bar" @submit.prevent="reload">
-      <label v-for="field in filterFields" :key="field" class="filter-item">
-        <span>{{ field }}</span>
-        <input v-model="filters[field]" :placeholder="`按${field}检索`" />
-      </label>
-      <button class="btn" type="submit">查询</button>
-      <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
-    </form>
+    <CompletionPanel
+      v-if="store.tab === 'completion'"
+      :period="store.period"
+      @periods="onPeriods"
+      @period-label="onPeriodLabel"
+    />
+    <LedgerPanel v-else :period="store.period" :period-label="periodLabel" />
 
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th v-for="column in columns" :key="column">{{ column }}</th>
-          <th>可执行动作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
-          <td class="row-actions">
-            <button
-              v-for="action in actions"
-              :key="action"
-              class="link"
-              type="button"
-              @click="runAction(action, row)"
-            >
-              {{ action }}
-            </button>
-          </td>
-        </tr>
-        <tr v-if="!rows.length">
-          <td :colspan="columns.length + 1" class="empty-state">暂无技能培训数据，可先登记培训记录</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <footer class="page-foot">
-      <span>共 {{ total }} 条技能培训记录</span>
-      <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
-    </footer>
+    <p v-if="errorMessage" class="page-foot error-text">{{ errorMessage }}</p>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
-import { request } from '@/api/client'
+import { fetchJson } from '@/api/client'
+import { useTrainingViewStore } from '@/stores/trainingView'
 
-type Row = Record<string, string | number | null>
+import CompletionPanel from './CompletionPanel.vue'
+import LedgerPanel from './LedgerPanel.vue'
 
-const ENDPOINT = '/api/training'
-const columns = ["培训编号", "培训主题", "培训对象", "培训日期", "培训讲师", "考核方式", "考核结果", "培训状态"]
-const actions = ["组织培训", "组织考核", "归档"]
-const statuses = ["待培训", "培训中", "已考核", "已归档"]
-const stats = [{"label": "待培训人数", "value": 0}, {"label": "已考核人数", "value": 0}, {"label": "合格率", "value": 0}]
-
-const rows = ref<Row[]>([])
-const total = ref(0)
+const store = useTrainingViewStore()
 const errorMessage = ref('')
-const filters = ref<Record<string, string>>({})
-const filterFields = columns.slice(0, 3)
+const periods = ref<string[]>([])
+const periodLabel = ref(store.period === 'all' ? '全部周期' : '')
 
-function resetFilters() {
-  filters.value = {}
-  void reload()
+function saveScroll() {
+  store.saveScroll(window.scrollY)
 }
 
-function exportRows() {
-  window.open(`${ENDPOINT}/export`, '_blank')
+function syncPeriodLabel() {
+  if (store.period === 'all') {
+    periodLabel.value = '全部周期'
+  } else if (store.period === 'latest') {
+    periodLabel.value = periods.value[0] ?? ''
+  } else {
+    periodLabel.value = store.period
+  }
+}
+
+function onPeriods(items: string[]) {
+  periods.value = items
+  if (!periodLabel.value || store.period === 'latest') {
+    syncPeriodLabel()
+  }
+}
+
+function onPeriodLabel(label: string) {
+  periodLabel.value = label
+}
+
+function onPeriodChange(event: Event) {
+  store.setPeriod((event.target as HTMLSelectElement).value)
+  syncPeriodLabel()
 }
 
 function openCreate() {
   errorMessage.value = '培训记录登记入口尚未接入审批流'
 }
 
-async function runAction(action: string, row: Row) {
-  errorMessage.value = ''
-  try {
-    const response = await request(`${ENDPOINT}/${row.id}/actions`, {
-      method: 'POST',
-      body: JSON.stringify({ action }),
-    })
-    if (!response.ok) {
-      throw new Error('技能培训动作未生效，请稍后重试')
-    }
-    await reload()
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '技能培训操作失败'
-  }
+function exportRows() {
+  const query = store.period === 'all' ? 'period=all' : `period=${encodeURIComponent(store.period)}`
+  window.open(`/api/training/export?${query}`, '_blank')
 }
 
-async function reload() {
-  errorMessage.value = ''
-  const query = new URLSearchParams(filters.value as Record<string, string>).toString()
-  try {
-    const response = await request(`${ENDPOINT}?${query}`)
-    if (!response.ok) {
-      throw new Error('培训记录列表读取失败')
-    }
-    const payload = await response.json()
-    rows.value = payload.items ?? []
-    total.value = payload.total ?? rows.value.length
-  } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : '技能培训列表读取失败'
+onMounted(async () => {
+  if (store.scrollY) {
+    window.scrollTo(0, store.scrollY)
   }
-}
+  window.addEventListener('scroll', saveScroll, { passive: true })
+  try {
+    const data = await fetchJson<{ periods: string[] }>('/api/training/periods')
+    onPeriods(data.periods ?? [])
+  } catch {
+    // 周期选项只是辅助，拉取失败不阻塞两个面板各自的数据请求
+  }
+})
 
-onMounted(reload)
+onUnmounted(() => {
+  saveScroll()
+  window.removeEventListener('scroll', saveScroll)
+})
 </script>

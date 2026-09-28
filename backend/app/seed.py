@@ -3,6 +3,67 @@ from __future__ import annotations
 
 from typing import Any
 
+
+def _build_training_seed() -> list[dict[str, Any]]:
+    """技能培训台账示例：覆盖三个月度周期、四个班组与缺考/不合格/信息缺失等情形。"""
+    # 每项为 (姓名, (七月结果, 八月结果, 九月结果), {月份: 缺失字段集合})；结果为 None 表示未考核
+    teams = [
+        ("A班道岔检修班", "道岔转辙机检修技能", "马建国", [
+            ("张伟", ("合格", "合格", "合格"), {}),
+            ("王强", ("合格", "不合格", "不合格"), {}),
+            ("李娜", (None, "合格", "合格"), {7: {"考核方式"}}),
+            ("刘洋", (None, "合格", None), {9: {"培训讲师"}}),
+        ]),
+        ("B班信号机检修班", "信号机与点灯单元维护", "林晓东", [
+            ("陈杰", ("合格", "合格", "不合格"), {9: {"考核方式"}}),
+            ("赵敏", ("合格", "合格", "不合格"), {}),
+            ("孙磊", ("合格", "合格", None), {}),
+            ("周婷", ("合格", "合格", "合格"), {}),
+            ("吴昊", ("合格", None, None), {8: {"培训讲师"}, 9: {"培训讲师"}}),
+        ]),
+        ("C班车载设备班", "车载ATP操作与故障处置", "高志远", [
+            ("郑斌", ("合格", "合格", "合格"), {}),
+            ("王芳", ("合格", "不合格", "合格"), {8: {"考核方式"}}),
+            ("冯超", ("合格", "合格", None), {}),
+            ("蒋雪", (None, "合格", "合格"), {}),
+        ]),
+        ("D班综合维护班", "综合应急抢修技能", "宋海峰", [
+            ("韩松", ("合格", "合格", None), {}),
+            ("曹阳", ("合格", "合格", None), {8: {"培训讲师"}, 9: {"培训讲师", "考核方式"}}),
+            ("许静", ("不合格", "合格", None), {}),
+            ("邓辉", ("合格", "不合格", None), {}),
+        ]),
+    ]
+    months = [(7, 14), (8, 11), (9, 8)]
+
+    rows: list[dict[str, Any]] = []
+    next_id = 1
+    for month_index, (month_num, base_day) in enumerate(months):
+        for team_name, topic, instructor, members in teams:
+            for person_index, (name, results, missing_map) in enumerate(members):
+                result = results[month_index]
+                missing = missing_map.get(month_num, set())
+                assessed = result in {"合格", "不合格"}
+                status = "已考核" if assessed else ("待培训" if person_index % 2 == 0 else "培训中")
+                rows.append({
+                    "id": next_id,
+                    "status": status,
+                    "pending": status != "已考核",
+                    "abnormal": result == "不合格",
+                    "培训编号": f"TRAI-{next_id:04d}",
+                    "培训主题": topic,
+                    "培训对象": name,
+                    "所属班组": team_name,
+                    "培训日期": f"2026-{month_num:02d}-{min(base_day + person_index % 3, 28):02d}",
+                    "培训讲师": "" if "培训讲师" in missing else instructor,
+                    "考核方式": "" if "考核方式" in missing else "理论+实操",
+                    "考核结果": result,
+                    "培训状态": status,
+                })
+                next_id += 1
+    return rows
+
+
 SEED_ROWS: dict[str, list[dict[str, Any]]] = {
     "interlock": [{'id': 1,
   'status': '正常',
@@ -688,40 +749,6 @@ SEED_ROWS: dict[str, list[dict[str, Any]]] = {
   '实施日期': '2026-09-03',
   '编制单位': '技术规章样例3',
   '规章状态': '技术规章样例3'}],
-    "training": [{'id': 1,
-  'status': '待培训',
-  'pending': True,
-  'abnormal': False,
-  '培训编号': 'TRAI-0001',
-  '培训主题': '技能培训样例1',
-  '培训对象': '技能培训样例1',
-  '培训日期': '2026-09-01',
-  '培训讲师': '技能培训样例1',
-  '考核方式': '技能培训样例1',
-  '考核结果': '技能培训样例1',
-  '培训状态': '技能培训样例1'},
- {'id': 2,
-  'status': '培训中',
-  'pending': True,
-  'abnormal': True,
-  '培训编号': 'TRAI-0002',
-  '培训主题': '技能培训样例2',
-  '培训对象': '技能培训样例2',
-  '培训日期': '2026-09-02',
-  '培训讲师': '技能培训样例2',
-  '考核方式': '技能培训样例2',
-  '考核结果': '技能培训样例2',
-  '培训状态': '技能培训样例2'},
- {'id': 3,
-  'status': '已考核',
-  'pending': False,
-  'abnormal': False,
-  '培训编号': 'TRAI-0003',
-  '培训主题': '技能培训样例3',
-  '培训对象': '技能培训样例3',
-  '培训日期': '2026-09-03',
-  '培训讲师': '技能培训样例3',
-  '考核方式': '技能培训样例3',
-  '考核结果': '技能培训样例3',
-  '培训状态': '技能培训样例3'}]
+    "training": _build_training_seed(),
 }
+
